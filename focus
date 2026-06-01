@@ -90,16 +90,21 @@ unblock_sites() {
 case "$1" in
     add)
         if [ -z "$2" ]; then echo "$MSG_NO_SITE"; exit 1; fi
-        if sed -n "/$MARKER_START/,/$MARKER_END/p" "$HOSTS_FILE" | grep -q "$2"; then
-            printf "$MSG_EXISTS" "$2"
+        
+        # --- НОРМАЛИЗАЦИЯ ---
+        # 1. Удаляем протоколы (http://, https://)
+        # 2. Удаляем всё после первого слеша (пути)
+        # 3. Удаляем слеш в конце, если он есть
+        DOMAIN=$(echo "$2" | sed -e 's|^[^/]*//||' -e 's|/.*||')
+        
+        if sed -n "/$MARKER_START/,/$MARKER_END/p" "$HOSTS_FILE" | grep -q "$DOMAIN"; then
+            printf "$MSG_EXISTS" "$DOMAIN"
         else
-            # Универсальная вставка через awk (работает 100% везде)
-            awk -v site="127.0.0.1 $2" -v marker="$MARKER_END" '$0 == marker {print site; print $0; next} {print}' "$HOSTS_FILE" > /tmp/hosts.tmp && cp /tmp/hosts.tmp "$HOSTS_FILE"
+            awk -v site="127.0.0.1 $DOMAIN" -v marker="$MARKER_END" '$0 == marker {print site; print $0; next} {print}' "$HOSTS_FILE" > /tmp/hosts.tmp && cp /tmp/hosts.tmp "$HOSTS_FILE"
             rm -f /tmp/hosts.tmp
-            printf "$MSG_ADDED" "$2"
+            printf "$MSG_ADDED" "$DOMAIN"
         fi
         ;;
-    
     remove)
         if [ -z "$2" ]; then echo "$MSG_NO_SITE"; exit 1; fi
         sed_in_place "/$MARKER_START/,/$MARKER_END/ { /$2/d; }" "$HOSTS_FILE"
