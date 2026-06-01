@@ -5,10 +5,11 @@ HOSTS_FILE="/etc/hosts"
 CONF_FILE="/etc/focus.conf"
 MARKER_START="# --- FOCUS START ---"
 MARKER_END="# --- FOCUS END ---"
+BIN_PATH="/usr/local/bin/focus"
 
 if [ "$EUID" -ne 0 ]; then
-    echo "Error: Please run this script as root (sudo)."
-    echo "Ошибка: Эту утилиту нужно запускать с правами sudo."
+    printf "Error: Please run this script as root (sudo).\n"
+    printf "Ошибка: Эту утилиту нужно запускать с правами sudo.\n"
     exit 1
 fi
 
@@ -19,57 +20,71 @@ source "$CONF_FILE"
 
 # --- ЛОКАЛИЗАЦИЯ ---
 if [ "$LANG" == "en" ]; then
-    MSG_NO_SITE="Specify a site. Example: focus add youtube.com"
+    MSG_NO_SITE="Specify a site. Example: focus add youtube.com\n"
     MSG_EXISTS="Site %s is already in the list.\n"
     MSG_ADDED="Site %s added to the blacklist.\n"
     MSG_REMOVED="Site %s removed.\n"
-    MSG_LIST_TITLE="Current blacklist:"
+    MSG_LIST_TITLE="Current blacklist:\n"
     MSG_UNLOCKED="Sites unlocked for %s minute(s).\n"
+    MSG_UNBLOCKED_FOREVER="Sites unlocked permanently (until next 'block').\n"
     MSG_TIME_LEFT="Time left: "
-    MSG_TIME_UP="\nTime is up. Sites are blocked again."
-    MSG_INTERRUPTED="\nTimer interrupted! Blocking sites back..."
-    MSG_BLOCKED_ALL="All sites from the list are forcibly blocked."
-    MSG_LANG_CHANGED="Language changed to English."
-    HELP_USAGE="Usage: sudo focus [command] [arguments]"
-    HELP_CMDS="Commands:"
-    HELP_ADD="  add <domain>      - Add site to blocklist"
-    HELP_REMOVE="  remove <domain>   - Remove site from blocklist"
-    HELP_LIST="  list              - Show blocked sites"
-    HELP_UNLOCK="  unlock [minutes]  - Unlock sites (default 5 min)"
-    HELP_BLOCK="  block             - Force block sites right now"
-    HELP_LANG="  lang <ru|en>      - Change language"
-    HELP_CMD="  help              - Show this help message"
+    MSG_TIME_UP="Time is up. Sites are blocked again.\n"
+    MSG_INTERRUPTED="Timer interrupted! Blocking sites back...\n"
+    MSG_BLOCKED_ALL="All sites from the list are forcibly blocked.\n"
+    MSG_SCHED_SET="Schedule set: block at %s, unblock at %s (Mon-Fri).\n"
+    MSG_SCHED_CLEARED="Schedule cleared.\n"
+    MSG_SCHED_ERR="Time format must be HH:MM. Example: focus schedule 09:00 15:00\n"
+    MSG_LANG_CHANGED="Language changed to English.\n"
+    
+    HELP_USAGE="Usage: sudo focus [command] [arguments]\n"
+    HELP_CMDS="Commands:\n"
+    HELP_ADD="  add <domain>             - Add site to blocklist\n"
+    HELP_REMOVE="  remove <domain>          - Remove site from blocklist\n"
+    HELP_LIST="  list                     - Show blocked sites\n"
+    HELP_BLOCK="  block                    - Force block sites right now\n"
+    HELP_UNBLOCK="  unblock                  - Unblock sites permanently\n"
+    HELP_UNLOCK="  unlock [minutes]         - Unlock sites with a timer (default 5 min)\n"
+    HELP_SCHED="  schedule <start> <end>   - Set weekday schedule (e.g., 09:00 15:00)\n"
+    HELP_UNSCHED="  unschedule               - Remove active schedule\n"
+    HELP_LANG="  lang <ru|en>             - Change language\n"
+    HELP_CMD="  help                     - Show this help message\n"
 else
-    MSG_NO_SITE="Укажите сайт. Пример: focus add youtube.com"
+    MSG_NO_SITE="Укажите сайт. Пример: focus add youtube.com\n"
     MSG_EXISTS="Сайт %s уже в списке.\n"
     MSG_ADDED="Сайт %s добавлен в черный список.\n"
     MSG_REMOVED="Сайт %s удален.\n"
-    MSG_LIST_TITLE="Текущий черный список:"
+    MSG_LIST_TITLE="Текущий черный список:\n"
     MSG_UNLOCKED="Сайты разблокированы на %s минут(ы).\n"
+    MSG_UNBLOCKED_FOREVER="Сайты разблокированы бессрочно (до следующей команды 'block').\n"
     MSG_TIME_LEFT="Осталось: "
-    MSG_TIME_UP="\nВремя вышло. Сайты снова заблокированы."
-    MSG_INTERRUPTED="\nТаймер прерван! Блокирую сайты обратно..."
-    MSG_BLOCKED_ALL="Все сайты из списка принудительно заблокированы."
-    MSG_LANG_CHANGED="Язык изменен на Русский."
-    HELP_USAGE="Использование: sudo focus [команда] [аргументы]"
-    HELP_CMDS="Команды:"
-    HELP_ADD="  add <домен>      - Добавить сайт в блокировку"
-    HELP_REMOVE="  remove <домен>   - Удалить сайт"
-    HELP_LIST="  list             - Показать список сайтов"
-    HELP_UNLOCK="  unlock [минуты]  - Разблокировать сайты (по умолчанию 5 мин)"
-    HELP_BLOCK="  block            - Принудительно заблокировать сайты прямо сейчас"
-    HELP_LANG="  lang <ru|en>      - Изменить язык"
-    HELP_CMD="  help              - Показать эту справку"
+    MSG_TIME_UP="Время вышло. Сайты снова заблокированы.\n"
+    MSG_INTERRUPTED="Таймер прерван! Блокирую сайты обратно...\n"
+    MSG_BLOCKED_ALL="Все сайты из списка принудительно заблокированы.\n"
+    MSG_SCHED_SET="Расписание установлено: блокировка в %s, разблокировка в %s (Пн-Пт).\n"
+    MSG_SCHED_CLEARED="Расписание удалено.\n"
+    MSG_SCHED_ERR="Формат времени должен быть ЧЧ:ММ. Пример: focus schedule 09:00 15:00\n"
+    MSG_LANG_CHANGED="Язык изменен на Русский.\n"
+    
+    HELP_USAGE="Использование: sudo focus [команда] [аргументы]\n"
+    HELP_CMDS="Команды:\n"
+    HELP_ADD="  add <домен>              - Добавить сайт в блокировку\n"
+    HELP_REMOVE="  remove <домен>           - Удалить сайт\n"
+    HELP_LIST="  list                     - Показать список сайтов\n"
+    HELP_BLOCK="  block                    - Принудительно заблокировать сайты прямо сейчас\n"
+    HELP_UNBLOCK="  unblock                  - Разблокировать сайты бессрочно\n"
+    HELP_UNLOCK="  unlock [минуты]          - Разблокировать сайты на время (по умолчанию 5 мин)\n"
+    HELP_SCHED="  schedule <старт> <конец> - Блокировка по будням (напр., 09:00 15:00)\n"
+    HELP_UNSCHED="  unschedule               - Удалить расписание\n"
+    HELP_LANG="  lang <ru|en>             - Изменить язык\n"
+    HELP_CMD="  help                     - Показать эту справку\n"
 fi
 
 # Инициализация блока hosts
 if ! grep -q "$MARKER_START" "$HOSTS_FILE"; then
-    echo -e "\n$MARKER_START\n$MARKER_END" >> "$HOSTS_FILE"
+    printf "\n%s\n%s\n" "$MARKER_START" "$MARKER_END" >> "$HOSTS_FILE"
 fi
 
 # --- КРОССПЛАТФОРМЕННЫЕ ФУНКЦИИ ---
-
-# Умная обертка для sed (работает и в macOS, и в Linux)
 sed_in_place() {
     if [ "$(uname -s)" = "Darwin" ]; then
         sed -i '' "$@"
@@ -79,7 +94,6 @@ sed_in_place() {
 }
 
 block_sites() {
-    # Используем [[:space:]] вместо \s, так как macOS не понимает \s
     sed_in_place "/$MARKER_START/,/$MARKER_END/ s/^#*[[:space:]]*127\.0\.0\.1/127.0.0.1/" "$HOSTS_FILE"
 }
 
@@ -89,13 +103,10 @@ unblock_sites() {
 
 case "$1" in
     add)
-        if [ -z "$2" ]; then echo "$MSG_NO_SITE"; exit 1; fi
+        if [ -z "$2" ]; then printf "$MSG_NO_SITE"; exit 1; fi
         
-        # --- НОРМАЛИЗАЦИЯ ---
-        # 1. Удаляем протоколы (http://, https://)
-        # 2. Удаляем всё после первого слеша (пути)
-        # 3. Удаляем слеш в конце, если он есть
-        DOMAIN=$(echo "$2" | sed -e 's|^[^/]*//||' -e 's|/.*||')
+        # Нормализация домена (удаление http://, https://, путей и слешей)
+        DOMAIN=$(printf "%s" "$2" | sed -e 's|^[^/]*//||' -e 's|/.*||')
         
         if sed -n "/$MARKER_START/,/$MARKER_END/p" "$HOSTS_FILE" | grep -q "$DOMAIN"; then
             printf "$MSG_EXISTS" "$DOMAIN"
@@ -105,66 +116,114 @@ case "$1" in
             printf "$MSG_ADDED" "$DOMAIN"
         fi
         ;;
+    
     remove)
-        if [ -z "$2" ]; then echo "$MSG_NO_SITE"; exit 1; fi
-        sed_in_place "/$MARKER_START/,/$MARKER_END/ { /$2/d; }" "$HOSTS_FILE"
-        printf "$MSG_REMOVED" "$2"
+        if [ -z "$2" ]; then printf "$MSG_NO_SITE"; exit 1; fi
+        
+        # Нормализация для удаления тоже не помешает
+        DOMAIN=$(printf "%s" "$2" | sed -e 's|^[^/]*//||' -e 's|/.*||')
+        
+        sed_in_place "/$MARKER_START/,/$MARKER_END/ { /$DOMAIN/d; }" "$HOSTS_FILE"
+        printf "$MSG_REMOVED" "$DOMAIN"
         ;;
     
     list)
-        echo "$MSG_LIST_TITLE"
+        printf "$MSG_LIST_TITLE"
         sed -n "/$MARKER_START/,/$MARKER_END/p" "$HOSTS_FILE" | grep "127.0.0.1" | sed 's/^#*[[:space:]]*127\.0\.0\.1 //' | awk '{print "- " $1}'
-        ;;
-
-    unlock)
-        MINUTES=${2:-5}
-        SECONDS=$((MINUTES * 60))
-        
-        trap "echo -e '$MSG_INTERRUPTED'; block_sites; exit" INT
-
-        unblock_sites
-        printf "$MSG_UNLOCKED" "$MINUTES"
-        
-        while [ $SECONDS -gt 0 ]; do
-            # Универсальное форматирование времени чисто средствами Bash
-            H=$((SECONDS / 3600))
-            M=$(((SECONDS % 3600) / 60))
-            S=$((SECONDS % 60))
-            TIME_FMT=$(printf "%02d:%02d:%02d" $H $M $S)
-            
-            echo -ne "$MSG_TIME_LEFT$TIME_FMT\r"
-            sleep 1
-            : $((SECONDS--))
-        done
-        
-        echo -e "$MSG_TIME_UP"
-        block_sites
         ;;
 
     block)
         block_sites
-        echo "$MSG_BLOCKED_ALL"
+        printf "$MSG_BLOCKED_ALL"
+        ;;
+
+    unblock)
+        unblock_sites
+        printf "$MSG_UNBLOCKED_FOREVER"
+        ;;
+
+    unlock)
+        MINUTES=${2:-5}
+        
+        # Получаем текущий timestamp и вычисляем точное время окончания
+        START_TIME=$(date +%s)
+        END_TIME=$((START_TIME + MINUTES * 60))
+        
+        # Перехват Ctrl+C с правильным переносом строки
+        trap "printf '\n%s' \"$MSG_INTERRUPTED\"; block_sites; exit" INT
+
+        unblock_sites
+        printf "$MSG_UNLOCKED" "$MINUTES"
+        
+        # Цикл работает до тех пор, пока текущее время меньше целевого
+        while [ $(date +%s) -lt $END_TIME ]; do
+            REMAINING=$((END_TIME - $(date +%s)))
+            
+            H=$((REMAINING / 3600))
+            M=$(((REMAINING % 3600) / 60))
+            S=$((REMAINING % 60))
+            
+            # \r - возврат в начало строки
+            # \033[K - очистка строки от курсора до конца (спасает от артефактов)
+            printf "\r%s%02d:%02d:%02d\033[K" "$MSG_TIME_LEFT" $H $M $S
+            
+            sleep 1
+        done
+        
+        printf "\n%s" "$MSG_TIME_UP"
+        block_sites
+        ;;
+
+    schedule)
+        START_TIME=$2
+        END_TIME=$3
+        
+        if [[ ! "$START_TIME" =~ ^[0-9]{2}:[0-9]{2}$ ]] || [[ ! "$END_TIME" =~ ^[0-9]{2}:[0-9]{2}$ ]]; then
+            printf "$MSG_SCHED_ERR"
+            exit 1
+        fi
+        
+        S_H=${START_TIME%:*} ; S_M=${START_TIME#*:}
+        E_H=${END_TIME%:*} ; E_M=${END_TIME#*:}
+
+        crontab -l 2>/dev/null | grep -v "$BIN_PATH" > /tmp/cron.tmp || true
+
+        echo "$S_M $S_H * * 1-5 $BIN_PATH block >/dev/null 2>&1" >> /tmp/cron.tmp
+        echo "$E_M $E_H * * 1-5 $BIN_PATH unblock >/dev/null 2>&1" >> /tmp/cron.tmp
+
+        crontab /tmp/cron.tmp
+        rm -f /tmp/cron.tmp
+        
+        printf "$MSG_SCHED_SET" "$START_TIME" "$END_TIME"
+        ;;
+
+    unschedule)
+        crontab -l 2>/dev/null | grep -v "$BIN_PATH" | crontab -
+        printf "$MSG_SCHED_CLEARED"
         ;;
 
     lang)
         if [[ "$2" == "en" || "$2" == "ru" ]]; then
             echo "LANG=$2" > "$CONF_FILE"
             source "$CONF_FILE"
-            if [ "$LANG" == "en" ]; then echo "Language changed to English."; else echo "Язык изменен на Русский."; fi
+            if [ "$LANG" == "en" ]; then printf "Language changed to English.\n"; else printf "Язык изменен на Русский.\n"; fi
         else
-            echo "Error: Use 'ru' or 'en'. / Ошибка: Используйте 'ru' или 'en'."
+            printf "Error: Use 'ru' or 'en'. / Ошибка: Используйте 'ru' или 'en'.\n"
         fi
         ;;
 
     help|*)
-        echo "$HELP_USAGE"
-        echo "$HELP_CMDS"
-        echo "$HELP_ADD"
-        echo "$HELP_REMOVE"
-        echo "$HELP_LIST"
-        echo "$HELP_UNLOCK"
-        echo "$HELP_BLOCK"
-        echo "$HELP_LANG"
-        echo "$HELP_CMD"
+        printf "$HELP_USAGE"
+        printf "$HELP_CMDS"
+        printf "$HELP_ADD"
+        printf "$HELP_REMOVE"
+        printf "$HELP_LIST"
+        printf "$HELP_BLOCK"
+        printf "$HELP_UNBLOCK"
+        printf "$HELP_UNLOCK"
+        printf "$HELP_SCHED"
+        printf "$HELP_UNSCHED"
+        printf "$HELP_LANG"
+        printf "$HELP_CMD"
         ;;
 esac
