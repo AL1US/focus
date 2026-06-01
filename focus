@@ -1,0 +1,156 @@
+#!/bin/bash
+
+# --- КОНФИГУРАЦИЯ ---
+HOSTS_FILE="/etc/hosts"
+CONF_FILE="/etc/focus.conf"
+MARKER_START="# --- FOCUS START ---"
+MARKER_END="# --- FOCUS END ---"
+
+# Проверка на права root
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: Please run this script as root (sudo)."
+    echo "Ошибка: Эту утилиту нужно запускать с правами sudo."
+    exit 1
+fi
+
+# Инициализация конфигурации, если её нет (по умолчанию русский)
+if [ ! -f "$CONF_FILE" ]; then
+    echo "LANG=ru" > "$CONF_FILE"
+fi
+
+# Загружаем настройки
+source "$CONF_FILE"
+
+# --- ЛОКАЛИЗАЦИЯ (СЛОВАРЬ) ---
+if [ "$LANG" == "en" ]; then
+    MSG_NO_SITE="Specify a site. Example: focus add youtube.com"
+    MSG_EXISTS="Site %s is already in the list.\n"
+    MSG_ADDED="Site %s added to the blacklist.\n"
+    MSG_REMOVED="Site %s removed.\n"
+    MSG_LIST_TITLE="Current blacklist:"
+    MSG_UNLOCKED="Sites unlocked for %s minute(s).\n"
+    MSG_TIME_LEFT="Time left: "
+    MSG_TIME_UP="\nTime is up. Sites are blocked again."
+    MSG_INTERRUPTED="\nTimer interrupted! Blocking sites back..."
+    MSG_BLOCKED_ALL="All sites from the list are forcibly blocked."
+    MSG_LANG_CHANGED="Language changed to English."
+    
+    HELP_USAGE="Usage: sudo focus [command] [arguments]"
+    HELP_CMDS="Commands:"
+    HELP_ADD="  add <domain>      - Add site to blocklist"
+    HELP_REMOVE="  remove <domain>   - Remove site from blocklist"
+    HELP_LIST="  list              - Show blocked sites"
+    HELP_UNLOCK="  unlock [minutes]  - Unlock sites (default 5 min)"
+    HELP_BLOCK="  block             - Force block sites right now"
+    HELP_LANG="  lang <ru|en>      - Change language"
+    HELP_CMD="  help              - Show this help message"
+else
+    MSG_NO_SITE="Укажите сайт. Пример: focus add youtube.com"
+    MSG_EXISTS="Сайт %s уже в списке.\n"
+    MSG_ADDED="Сайт %s добавлен в черный список.\n"
+    MSG_REMOVED="Сайт %s удален.\n"
+    MSG_LIST_TITLE="Текущий черный список:"
+    MSG_UNLOCKED="Сайты разблокированы на %s минут(ы).\n"
+    MSG_TIME_LEFT="Осталось: "
+    MSG_TIME_UP="\nВремя вышло. Сайты снова заблокированы."
+    MSG_INTERRUPTED="\nТаймер прерван! Блокирую сайты обратно..."
+    MSG_BLOCKED_ALL="Все сайты из списка принудительно заблокированы."
+    MSG_LANG_CHANGED="Язык изменен на Русский."
+    
+    HELP_USAGE="Использование: sudo focus [команда] [аргументы]"
+    HELP_CMDS="Команды:"
+    HELP_ADD="  add <домен>      - Добавить сайт в блокировку"
+    HELP_REMOVE="  remove <домен>   - Удалить сайт"
+    HELP_LIST="  list             - Показать список сайтов"
+    HELP_UNLOCK="  unlock [минуты]  - Разблокировать сайты (по умолчанию 5 мин)"
+    HELP_BLOCK="  block            - Принудительно заблокировать сайты прямо сейчас"
+    HELP_LANG="  lang <ru|en>      - Изменить язык (ru - русский, en - english)"
+    HELP_CMD="  help              - Показать эту справку"
+fi
+
+# Инициализация блока hosts, если его нет
+if ! grep -q "$MARKER_START" "$HOSTS_FILE"; then
+    echo -e "\n$MARKER_START\n$MARKER_END" >> "$HOSTS_FILE"
+fi
+
+# Функция блокировки
+block_sites() {
+    sed -i "/$MARKER_START/,/$MARKER_END/ s/^#*\s*127\.0\.0\.1/127.0.0.1/" "$HOSTS_FILE"
+}
+
+# Функция разблокировки
+unblock_sites() {
+    sed -i "/$MARKER_START/,/$MARKER_END/ s/^127\.0\.0\.1/# 127.0.0.1/" "$HOSTS_FILE"
+}
+
+# --- ОСНОВНАЯ ЛОГИКА КОМАНД ---
+case "$1" in
+    add)
+        if [ -z "$2" ]; then echo "$MSG_NO_SITE"; exit 1; fi
+        if sed -n "/$MARKER_START/,/$MARKER_END/p" "$HOSTS_FILE" | grep -q "$2"; then
+            printf "$MSG_EXISTS" "$2"
+        else
+            sed -i "/$MARKER_END/i 127.0.0.1 $2" "$HOSTS_FILE"
+            printf "$MSG_ADDED" "$2"
+        fi
+        ;;
+    
+    remove)
+        if [ -z "$2" ]; then echo "$MSG_NO_SITE"; exit 1; fi
+        sed -i "/$MARKER_START/,/$MARKER_END/ { /$2/d }" "$HOSTS_FILE"
+        printf "$MSG_REMOVED" "$2"
+        ;;
+    
+    list)
+        echo "$MSG_LIST_TITLE"
+        sed -n "/$MARKER_START/,/$MARKER_END/p" "$HOSTS_FILE" | grep "127.0.0.1" | sed 's/^#*\s*127\.0\.0\.1 //' | awk '{print "- " $1}'
+        ;;
+
+    unlock)
+        MINUTES=${2:-5}
+        SECONDS=$((MINUTES * 60))
+        
+        # Перехват Ctrl+C
+        trap "echo -e '$MSG_INTERRUPTED'; block_sites; exit" INT
+
+        unblock_sites
+        printf "$MSG_UNLOCKED" "$MINUTES"
+        
+        while [ $SECONDS -gt 0 ]; do
+            echo -ne "$MSG_TIME_LEFT$(date -u --date @$SECONDS +%H:%M:%S)\r"
+            sleep 1
+            : $((SECONDS--))
+        done
+        
+        echo -e "$MSG_TIME_UP"
+        block_sites
+        ;;
+
+    block)
+        block_sites
+        echo "$MSG_BLOCKED_ALL"
+        ;;
+
+    lang)
+        if [[ "$2" == "en" || "$2" == "ru" ]]; then
+            echo "LANG=$2" > "$CONF_FILE"
+            # Перезагружаем конфиг, чтобы показать сообщение на новом языке
+            source "$CONF_FILE"
+            if [ "$LANG" == "en" ]; then echo "Language changed to English."; else echo "Язык изменен на Русский."; fi
+        else
+            echo "Error: Use 'ru' or 'en'. / Ошибка: Используйте 'ru' или 'en'."
+        fi
+        ;;
+
+    help|*)
+        echo "$HELP_USAGE"
+        echo "$HELP_CMDS"
+        echo "$HELP_ADD"
+        echo "$HELP_REMOVE"
+        echo "$HELP_LIST"
+        echo "$HELP_UNLOCK"
+        echo "$HELP_BLOCK"
+        echo "$HELP_LANG"
+        echo "$HELP_CMD"
+        ;;
+esac
